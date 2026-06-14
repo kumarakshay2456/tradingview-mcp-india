@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tradingview-mcp-india"
+version = "0.7.1+india.1"
+description = "Fork of tradingview-mcp-server (Atila Ahmettaner) with NSE/BSE Indian-market support added."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Atila Ahmettaner" }]
+maintainers = [{ name = "Akshay Kumar" }]
+keywords = ["mcp", "tradingview", "india", "nse", "bse", "screener", "technical analysis"]
+dependencies = [
+    "feedparser>=6.0.12",
+    "mcp[cli]>=1.12.0",
+    "tradingview-screener>=0.6.4",
+    "tradingview-ta>=3.3.0",
+]
+
+[project.urls]
+"Upstream" = "https://github.com/atilaahmettaner/tradingview-mcp"
+
+# Keep the original console-script name so existing MCP client configs keep working.
+[project.scripts]
+tradingview-mcp = "tradingview_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Ship the symbol lists and bundled data alongside the code.
+[tool.setuptools.package-data]
+tradingview_mcp = ["coinlist/*.txt"]
