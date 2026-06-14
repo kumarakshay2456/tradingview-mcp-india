@@ -31,4 +31,4 @@ where = ["src"]
 
 # Ship the symbol lists and bundled data alongside the code.
 [tool.setuptools.package-data]
-tradingview_mcp = ["coinlist/*.txt"]
+tradingview_mcp = ["coinlist/*.txt", "core/data/*.json"]

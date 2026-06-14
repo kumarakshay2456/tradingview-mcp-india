@@ -43,6 +43,11 @@ from tradingview_mcp.core.services.egx_service import (
 )
 from tradingview_mcp.core.services.sentiment_service import analyze_sentiment
 from tradingview_mcp.core.services.news_service import fetch_news_summary
+from tradingview_mcp.core.services.india_service import (
+    generate_india_picks,
+    generate_india_trade_plan,
+    backtest_india_pick,
+)
 from tradingview_mcp.core.services.yahoo_finance_service import (
     get_price,
     get_market_snapshot,
@@ -484,6 +489,74 @@ def india_news(symbol: str = None, limit: int = 10) -> dict:
         limit: Max number of news items
     """
     return fetch_news_summary(symbol, category="india", limit=limit)
+
+
+# ── India stock suggestion engine ───────────────────────────────────────────────
+
+@mcp.tool()
+def india_swing_picks(exchange: str = "NSE", top_n: int = 5, min_conviction: int = 60, scan_limit: int = 150, direction: str = "auto", index_filter: str = "", capital: float = 0.0, risk_pct: float = 1.0) -> dict:
+    """Suggest 2-7 day SWING trade ideas for NSE/BSE — ranked LONG/SHORT setups with entry, stop, two targets, conviction score, optional position sizing, and a plain-English rationale.
+
+    Scans liquid stocks on the daily timeframe, scores directional momentum + setup quality, and returns the highest-conviction ideas.
+
+    Args:
+        exchange: "NSE" or "BSE"
+        top_n: Number of picks to return (1-25)
+        min_conviction: Minimum conviction score 0-100 to include (default 60)
+        scan_limit: How many of the most-liquid symbols to scan (max 500); ignored when index_filter is set
+        direction: "auto" (long uptrends / short downtrends), "long", or "short"
+        index_filter: Restrict universe — "NIFTY50", "NIFTYBANK", "NIFTYNEXT50" (empty = all)
+        capital: Account capital in INR — if > 0, each idea includes share quantity + rupee P&L
+        risk_pct: Risk per trade as % of capital (default 1.0)
+    """
+    return generate_india_picks(exchange, mode="swing", top_n=top_n, min_conviction=min_conviction, scan_limit=scan_limit, direction=direction, index_filter=index_filter, capital=capital, risk_pct=risk_pct)
+
+
+@mcp.tool()
+def india_intraday_signals(exchange: str = "NSE", timeframe: str = "15m", top_n: int = 5, min_conviction: int = 60, scan_limit: int = 150, direction: str = "auto", index_filter: str = "", capital: float = 0.0, risk_pct: float = 1.0) -> dict:
+    """Suggest INTRADAY (same-session) LONG/SHORT signals for NSE/BSE — ranked setups with entry, stop, two targets, conviction score, VWAP context, optional position sizing, and a plain-English rationale.
+
+    Args:
+        exchange: "NSE" or "BSE"
+        timeframe: Intraday interval — "5m" or "15m" (default 15m)
+        top_n: Number of signals to return (1-25)
+        min_conviction: Minimum conviction score 0-100 to include (default 60)
+        scan_limit: How many of the most-liquid symbols to scan (max 500); ignored when index_filter is set
+        direction: "auto" (long uptrends / short downtrends), "long", or "short"
+        index_filter: Restrict universe — "NIFTY50", "NIFTYBANK", "NIFTYNEXT50" (empty = all)
+        capital: Account capital in INR — if > 0, each idea includes share quantity + rupee P&L
+        risk_pct: Risk per trade as % of capital (default 1.0)
+    """
+    return generate_india_picks(exchange, mode="intraday", timeframe=timeframe, top_n=top_n, min_conviction=min_conviction, scan_limit=scan_limit, direction=direction, index_filter=index_filter, capital=capital, risk_pct=risk_pct)
+
+
+@mcp.tool()
+def india_trade_plan(symbol: str, exchange: str = "NSE", mode: str = "swing", timeframe: str = None, direction: str = "auto", capital: float = 0.0, risk_pct: float = 1.0) -> dict:
+    """Full trade plan for one NSE/BSE stock: entry (CMP), stop-loss, two targets, risk/reward, conviction score, optional position sizing, and plain-English rationale. Supports long and short.
+
+    Args:
+        symbol: NSE/BSE symbol e.g. "RELIANCE", "TCS", "HDFCBANK"
+        exchange: "NSE" or "BSE"
+        mode: "swing" (2-7 day, daily timeframe) or "intraday" (same-session, 15m)
+        timeframe: Optional override of the analysis timeframe (else mode default)
+        direction: "auto" (pick by trend), "long", or "short"
+        capital: Account capital in INR — if > 0, includes share quantity + rupee P&L
+        risk_pct: Risk per trade as % of capital (default 1.0)
+    """
+    return generate_india_trade_plan(symbol, exchange=exchange, mode=mode, timeframe=timeframe, direction=direction, capital=capital, risk_pct=risk_pct)
+
+
+@mcp.tool()
+def india_backtest(symbol: str, exchange: str = "NSE", period: str = "2y", interval: str = "1d") -> dict:
+    """Validate an NSE/BSE stock against history — runs all 6 strategies (RSI, Bollinger, MACD, EMA cross, Supertrend, Donchian) on its Yahoo data and returns a ranked leaderboard. A robustness check before acting on a suggestion.
+
+    Args:
+        symbol: NSE/BSE symbol e.g. "RELIANCE", "TCS"
+        exchange: "NSE" or "BSE"
+        period: '6mo', '1y', '2y'
+        interval: '1d' or '1h'
+    """
+    return backtest_india_pick(symbol, exchange=exchange, period=period, interval=interval)
 
 
 @mcp.tool()

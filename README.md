@@ -60,13 +60,55 @@ india_news(symbol="RELIANCE")        # only headlines mentioning RELIANCE
 financial_news(category="india")     # same feeds via the generic tool
 ```
 
+### Stock suggestion engine (NSE/BSE)
+
+AI-assisted LONG trade ideas — each with entry (CMP), stop-loss, two targets,
+risk/reward, a 0–100 conviction score, and a plain-English rationale:
+
+```
+india_swing_picks(exchange="NSE", top_n=5)                 # 2-7 day swing ideas (daily TF)
+india_swing_picks(direction="short")                       # bearish setups
+india_swing_picks(index_filter="NIFTY50")                  # restrict to an index universe
+india_intraday_signals(exchange="NSE", top_n=5)            # same-session ideas (15m, VWAP-aware)
+india_trade_plan("AXISBANK", mode="swing", direction="auto")  # full plan for one stock
+india_backtest("TCS", period="2y")                         # validate vs history (6-strategy leaderboard)
+india_swing_picks(capital=200000, risk_pct=1.5)            # add position sizing (qty + ₹ P&L)
+```
+
+- **Position sizing**: pass `capital` (INR) and `risk_pct` to any idea tool. Each idea then
+  carries `position_sizing`: share `quantity` sized so a stop-out loses ~`risk_pct` of capital
+  (capped by capital), plus `position_value`, rupee `loss_at_stop`, and `profit_at_t1/t2`.
+  Short sizing is notional (real shorting needs margin).
+
+- **direction**: `"auto"` (long uptrends / short downtrends), `"long"`, or `"short"`. Short
+  setups use a dedicated bearish momentum/quality scorer (the shared engine is long-biased)
+  and inverted levels (stop above entry, targets below).
+- **index_filter**: `"NIFTY50"`, `"NIFTYBANK"`, `"NIFTYNEXT50"` — constituents bundled in
+  `core/data/india_indices.py` (refresh on NSE rebalance).
+- **india_backtest**: maps the symbol to Yahoo (`.NS`/`.BO`) and runs all 6 strategies as a
+  robustness check on whether the name respects technical setups.
+
+How it works: scans the most-liquid NSE/BSE stocks, scores momentum
+(`compute_stock_score`) and setup tradability (`compute_trade_quality`), builds
+levels via `compute_trade_setup`, then layers on a conviction blend, a directional
+gate (long-only; downtrends filtered out), and a generated rationale. ATR and
+average volume are backfilled from `tradingview_screener` because `tradingview_ta`
+omits them — without this the trade-setup engine produced no levels at all (this
+gap also silently affected the upstream EGX setup path). Stops are floored
+(≥0.5% swing / ≥0.6% intraday) so signals aren't stopped out by noise.
+Educational analysis only — not investment advice.
+
 The `egx_*` tools are Egypt-specific and do not apply to India.
 
 ## Refreshing the symbol lists
 
 ```bash
-python scripts/refresh_india_symbols.py
+python scripts/refresh_india_symbols.py    # NSE/BSE liquid universe (coinlist/*.txt)
+python scripts/refresh_india_indices.py    # Nifty 50 / Bank Nifty / Next 50 constituents (official NSE CSVs)
 ```
+
+`refresh_india_indices.py` writes `core/data/india_indices.json`, which overrides the
+bundled constituent lists. Run it after an NSE index rebalance.
 
 ## Run the MCP server
 
