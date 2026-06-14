@@ -22,8 +22,23 @@ from __future__ import annotations
 
 import os
 import random
+import ssl
 import urllib.request
 from typing import Optional
+
+# certifi-backed SSL context so HTTPS works on environments whose Python lacks a
+# system CA bundle (e.g. macOS python.org builds -> "CERTIFICATE_VERIFY_FAILED").
+try:
+    import certifi
+    _CA_FILE: Optional[str] = certifi.where()
+except ImportError:
+    _CA_FILE = None
+
+
+def _https_handler() -> urllib.request.HTTPSHandler:
+    """HTTPSHandler using certifi CAs when available, else the system default."""
+    ctx = ssl.create_default_context(cafile=_CA_FILE) if _CA_FILE else ssl.create_default_context()
+    return urllib.request.HTTPSHandler(context=ctx)
 
 # Try loading .env file if python-dotenv is available
 try:
@@ -78,7 +93,7 @@ def build_opener_with_proxy(
     Build a urllib OpenerDirector with proxy if configured, plain opener otherwise.
     Services degrade gracefully when no proxy is set — no crashes.
     """
-    opener = urllib.request.build_opener()
+    opener = urllib.request.build_opener(_https_handler())
     opener.addheaders = [("User-Agent", user_agent)]
 
     if not is_proxy_configured():
@@ -94,7 +109,7 @@ def build_opener_with_proxy(
     pwd_mgr.add_password(None, f"http://{c['host']}:{c['port']}", username, c["password"])
     auth_handler = urllib.request.ProxyBasicAuthHandler(pwd_mgr)
 
-    opener = urllib.request.build_opener(proxy_handler, auth_handler)
+    opener = urllib.request.build_opener(proxy_handler, auth_handler, _https_handler())
     opener.addheaders = [("User-Agent", user_agent)]
     return opener
 

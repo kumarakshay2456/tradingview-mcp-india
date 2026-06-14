@@ -38,6 +38,7 @@ BEARISH_KEYWORDS = [
 SUBREDDIT_GROUPS: dict[str, list[str]] = {
     "crypto": ["CryptoCurrency", "Bitcoin", "ethereum", "CryptoMarkets", "altcoin"],
     "stocks": ["stocks", "investing", "wallstreetbets", "StockMarket", "ValueInvesting"],
+    "india":  ["IndianStockMarket", "IndianStreetBets", "DalalStreetTalks", "StockMarketIndia", "IndiaInvestments"],
     "all":    ["wallstreetbets", "stocks", "investing", "CryptoCurrency", "StockMarket"],
 }
 

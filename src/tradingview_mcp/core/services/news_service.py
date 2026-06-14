@@ -1,25 +1,40 @@
 """
 Financial News Service via RSS feeds.
 
-Uses feedparser (already installed as part of agent-reach dependencies).
-No API keys required. Pulls from free, public RSS feeds.
+Uses feedparser. No API keys required. Pulls from free, public RSS feeds.
+
+Network notes:
+  Feeds are fetched with an explicit certifi-backed SSL context and a browser
+  User-Agent, and redirects (incl. HTTP 308) are followed manually. This avoids
+  the macOS "CERTIFICATE_VERIFY_FAILED" issue and bot-blocking that breaks
+  feedparser's default urllib fetch.
 
 Sources:
   crypto: CoinDesk, Cointelegraph
-  stocks: Reuters Business News
-  all:    Combined
+  stocks: Reuters Business / Company news
+  india:  Economic Times, Moneycontrol, LiveMint, Hindu BusinessLine
+  all:    Combined (global + India)
 """
 from __future__ import annotations
 
+import ssl
+import urllib.request
+import urllib.error
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Optional
 
-# feedparser is bundled with agent-reach (installed globally)
 try:
     import feedparser
     _FEEDPARSER_AVAILABLE = True
 except ImportError:
     _FEEDPARSER_AVAILABLE = False
+
+try:
+    import certifi
+    _CA_FILE = certifi.where()
+except ImportError:
+    _CA_FILE = None
 
 # ─── Feed Catalog ─────────────────────────────────────────────────────────────
 
@@ -32,14 +47,58 @@ RSS_FEEDS: dict[str, list[dict]] = {
         {"url": "https://feeds.reuters.com/reuters/businessNews", "name": "Reuters Business"},
         {"url": "https://feeds.reuters.com/reuters/companyNews", "name": "Reuters Company"},
     ],
+    # Indian market news — free public RSS, no key required.
+    "india": [
+        {"url": "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "name": "Economic Times Markets"},
+        {"url": "https://economictimes.indiatimes.com/markets/stocks/rssfeeds/2146842.cms", "name": "Economic Times Stocks"},
+        {"url": "https://www.moneycontrol.com/rss/business.xml", "name": "Moneycontrol Business"},
+        {"url": "https://www.moneycontrol.com/rss/marketreports.xml", "name": "Moneycontrol Markets"},
+        {"url": "https://www.livemint.com/rss/markets", "name": "LiveMint Markets"},
+        {"url": "https://www.thehindubusinessline.com/markets/feeder/default.rss", "name": "Hindu BusinessLine Markets"},
+    ],
     "all": [
         {"url": "https://feeds.reuters.com/reuters/businessNews", "name": "Reuters Business"},
         {"url": "https://www.coindesk.com/arc/outboundfeeds/rss/", "name": "CoinDesk"},
         {"url": "https://cointelegraph.com/rss", "name": "CoinTelegraph"},
+        {"url": "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "name": "Economic Times Markets"},
+        {"url": "https://www.moneycontrol.com/rss/business.xml", "name": "Moneycontrol Business"},
+        {"url": "https://www.livemint.com/rss/markets", "name": "LiveMint Markets"},
     ],
 }
 
-_TIMEOUT = 8
+_TIMEOUT = 10
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
+_MAX_REDIRECTS = 5
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """SSL context backed by certifi when available, else system default."""
+    if _CA_FILE:
+        return ssl.create_default_context(cafile=_CA_FILE)
+    return ssl.create_default_context()
+
+
+def _fetch_url(url: str) -> bytes:
+    """Fetch raw feed bytes with a browser UA, certifi SSL, and manual redirect
+    following (urllib in Python 3.10 does not auto-follow HTTP 308)."""
+    ctx = _ssl_context()
+    seen = 0
+    while True:
+        req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=_TIMEOUT, context=ctx) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code in (301, 302, 303, 307, 308) and seen < _MAX_REDIRECTS:
+                location = e.headers.get("Location")
+                if location:
+                    url = urllib.parse.urljoin(url, location)
+                    seen += 1
+                    continue
+            raise
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -54,8 +113,8 @@ def fetch_news(
 
     Args:
         symbol:   Optional ticker filter. If provided, only returns headlines
-                  that mention the symbol (case-insensitive). e.g. "AAPL", "BTC"
-        category: Feed group — "crypto" | "stocks" | "all"
+                  that mention the symbol (case-insensitive). e.g. "AAPL", "RELIANCE"
+        category: Feed group — "crypto" | "stocks" | "india" | "all"
         limit:    Maximum number of items to return
 
     Returns:
@@ -74,14 +133,15 @@ def fetch_news(
         if len(results) >= limit:
             break
         try:
-            feed = feedparser.parse(feed_info["url"])
-            source_name = feed.feed.get("title", feed_info["name"])
+            raw = _fetch_url(feed_info["url"])
+            feed = feedparser.parse(raw)
+            source_name = feed.feed.get("title", feed_info["name"]) or feed_info["name"]
 
             for entry in feed.entries:
                 if len(results) >= limit:
                     break
 
-                title = entry.get("title", "")
+                title = _clean_html(entry.get("title", ""))
                 summary = entry.get("summary", "") or entry.get("description", "")
 
                 # Symbol filter
@@ -126,9 +186,9 @@ def fetch_news_summary(
 # ─── Utils ────────────────────────────────────────────────────────────────────
 
 def _clean_html(text: str) -> str:
-    """Strip basic HTML tags from text."""
+    """Strip HTML tags and unescape entities (named + numeric)."""
     import re
+    import html
     text = re.sub(r"<[^>]+>", "", text)
-    for entity, char in (("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&nbsp;", " ")):
-        text = text.replace(entity, char)
+    text = html.unescape(text)
     return text.strip()

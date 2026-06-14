@@ -456,8 +456,8 @@ def market_sentiment(symbol: str, category: str = "all", limit: int = 20) -> dic
     """Real-time Reddit sentiment analysis for stocks and crypto.
 
     Args:
-        symbol: Asset symbol ("AAPL", "BTC", "ETH", "TSLA")
-        category: Subreddit group to search ("crypto", "stocks", "all")
+        symbol: Asset symbol ("AAPL", "BTC", "ETH", "RELIANCE")
+        category: Subreddit group to search ("crypto", "stocks", "india", "all")
         limit: Number of posts to analyse
     """
     return analyze_sentiment(symbol, category, limit)
@@ -465,14 +465,25 @@ def market_sentiment(symbol: str, category: str = "all", limit: int = 20) -> dic
 
 @mcp.tool()
 def financial_news(symbol: str = None, category: str = "stocks", limit: int = 10) -> dict:
-    """Real-time financial news from RSS feeds (Reuters, CoinDesk, etc.)
+    """Real-time financial news from RSS feeds (Reuters, CoinDesk, Economic Times, etc.)
 
     Args:
-        symbol: Optional symbol filter ("AAPL", "BTC"). None = all news.
-        category: Feed category ("crypto", "stocks", "all")
+        symbol: Optional symbol filter ("AAPL", "BTC", "RELIANCE"). None = all news.
+        category: Feed category ("crypto", "stocks", "india", "all")
         limit: Max number of news items
     """
     return fetch_news_summary(symbol, category, limit)
+
+
+@mcp.tool()
+def india_news(symbol: str = None, limit: int = 10) -> dict:
+    """Indian market news from Economic Times, Moneycontrol, LiveMint & Hindu BusinessLine RSS feeds.
+
+    Args:
+        symbol: Optional filter — headline must mention it ("RELIANCE", "TCS", "NIFTY"). None = all India news.
+        limit: Max number of news items
+    """
+    return fetch_news_summary(symbol, category="india", limit=limit)
 
 
 @mcp.tool()
@@ -480,12 +491,18 @@ def combined_analysis(symbol: str, exchange: str = "NASDAQ", timeframe: str = "1
     """POWER TOOL: TradingView technical analysis + Reddit sentiment + Financial news.
 
     Args:
-        symbol: Asset symbol ("AAPL", "BTCUSDT", "THYAO")
-        exchange: Exchange (NASDAQ, NYSE, BINANCE, KUCOIN, MEXC, BIST, EGX)
+        symbol: Asset symbol ("AAPL", "BTCUSDT", "RELIANCE")
+        exchange: Exchange (NASDAQ, NYSE, NSE, BSE, BINANCE, KUCOIN, MEXC, BIST, EGX)
         timeframe: Analysis timeframe (5m, 15m, 1h, 4h, 1D, 1W)
     """
     tech = coin_analysis(symbol, exchange, timeframe)
-    cat = "crypto" if exchange.upper() in ["BINANCE", "KUCOIN", "BYBIT", "MEXC"] else "stocks"
+    ex_up = exchange.upper()
+    if ex_up in ["BINANCE", "KUCOIN", "BYBIT", "MEXC"]:
+        cat = "crypto"
+    elif ex_up in ["NSE", "BSE"]:
+        cat = "india"
+    else:
+        cat = "stocks"
     sentiment = analyze_sentiment(symbol, category=cat)
     news = fetch_news_summary(symbol, category=cat, limit=5)
 

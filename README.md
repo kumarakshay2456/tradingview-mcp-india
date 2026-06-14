@@ -9,6 +9,19 @@ by Atila Ahmettaner (MIT), with **Indian stock-market (NSE / BSE) support added*
   (`src/tradingview_mcp/core/utils/validators.py`).
 - Bundled symbol lists `coinlist/nse.txt` and `coinlist/bse.txt`
   (top ~1,000 most-liquid tickers each), so symbol-iterating tools work too.
+- **Indian news**: new `india` RSS category (Economic Times, Moneycontrol, LiveMint,
+  Hindu BusinessLine) and a dedicated `india_news` MCP tool.
+- **Indian sentiment**: new `india` Reddit group (r/IndianStockMarket, r/IndianStreetBets,
+  r/DalalStreetTalks, r/StockMarketIndia, r/IndiaInvestments).
+- **Indian indices in `market_snapshot`**: Nifty 50 (`^NSEI`), Sensex (`^BSESN`),
+  Bank Nifty (`^NSEBANK`), plus USDINR FX.
+- **`combined_analysis` routing**: NSE/BSE now pull Indian news + Indian sentiment
+  (previously fell through to Reuters/US subreddits and returned nothing).
+- **SSL reliability fix (important)**: all outbound HTTPS (Yahoo Finance, Reddit, RSS) now
+  uses a certifi-backed SSL context — via `proxy_manager._https_handler()` for the shared
+  opener and a dedicated fetch in `news_service`, plus browser User-Agent and manual HTTP 308
+  redirect following. Without this, the macOS `CERTIFICATE_VERIFY_FAILED` error silently broke
+  *every* network tool (Yahoo price, snapshot, backtest, sentiment, news) — not just India.
 
 Everything else is unchanged from upstream v0.7.1.
 
@@ -37,6 +50,14 @@ Yahoo / backtest tools — use the `.NS` (NSE) or `.BO` (BSE) suffix:
 ```
 backtest_strategy("TCS.NS", "rsi", "1y")
 compare_strategies("INFY.NS")
+```
+
+Indian news:
+
+```
+india_news(limit=10)                 # all India market headlines
+india_news(symbol="RELIANCE")        # only headlines mentioning RELIANCE
+financial_news(category="india")     # same feeds via the generic tool
 ```
 
 The `egx_*` tools are Egypt-specific and do not apply to India.

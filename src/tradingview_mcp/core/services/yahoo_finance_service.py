@@ -120,8 +120,9 @@ def get_market_snapshot() -> dict:
     """
     groups = {
         "indices": ["^GSPC", "^DJI", "^IXIC", "^VIX"],
+        "india":   ["^NSEI", "^BSESN", "^NSEBANK"],  # Nifty 50, Sensex, Bank Nifty
         "crypto":  ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD"],
-        "fx":      ["EURUSD=X", "GBPUSD=X", "JPYUSD=X"],
+        "fx":      ["EURUSD=X", "GBPUSD=X", "JPYUSD=X", "USDINR=X"],
         "etfs":    ["SPY", "QQQ", "GLD"],
     }
 
